@@ -1,0 +1,4 @@
+# Logfile created on Wed Oct 26 23:26:29 Jerusalem Standard Time 2005 by logger.rb/1.5.2.7
+  [4;35;1mSQL (0.000000)[0m   [0mCREATE TABLE multilingual_models (id INTEGER PRIMARY KEY NOT NULL, title varchar(255)) [0m
+  [4;36;1mSQL (0.000000)[0m   [0;1mPRAGMA table_info(multilingual_models)[0m
+  [4;35;1mSQL (0.015000)[0m   [0mDROP TABLE multilingual_models[0m
