@@ -66,3 +66,53 @@ class ActiveRecord::Errors
     full_messages
   end
 end
+
+#=begin
+# Add in translation stuff to AR
+require 'multilingual/rails/lib/db_translate'
+class ActiveRecord::Base
+  include Multilingual::DbTranslate
+
+  alias_method :multilingual_old_initialize, :initialize
+  alias_method :multilingual_old_update, :update
+  alias_method :multilingual_old_create, :create
+
+  def self.translatable?; respond_to?(:inject_translations!); end
+
+  def initialize(attributes = nil)
+    # delete translatable facets from attributes, assign them to facets
+    segregate_facets(attributes) if self.class.translatable?
+
+    multilingual_old_initialize(attributes)
+  end
+
+  private
+    # inject translations when creating/updating
+    def update
+      multilingual_old_update
+      update_translation if self.class.translatable?
+    end
+
+    def create
+      multilingual_old_create
+      update_translation if self.class.translatable?
+    end
+end
+
+module ActiveRecord
+  module Associations
+    class AssociationProxy 
+	    alias_method :multilingual_old_load_target, :load_target
+
+      private
+        # inject translations into associations
+        def load_target
+          multilingual_old_load_target
+          if @target && @association_class.translatable?
+            @association_class.inject_translations!(@target)
+          end
+        end
+    end
+  end
+end
+#=end

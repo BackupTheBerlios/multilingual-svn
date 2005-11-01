@@ -22,6 +22,9 @@ require_dependency "#{MLR_ROOT}/translators/abstract"
 # Load all Rails modules
 Dir.glob("#{MLR_ROOT}/rails/*.rb") { |file| require_dependency file }
 
+# Load plugin models
+Dir.glob("#{MLR_ROOT}/models/*.rb") { |file| require_dependency file }
+
 # These are static (unless when developing the Multilingual Rails framework
 # itself) so require them normally.
 require "#{MLR_ROOT}/core_ext"
