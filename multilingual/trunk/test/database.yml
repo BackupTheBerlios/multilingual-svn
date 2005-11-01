@@ -1,7 +1,0 @@
-sqlite:
-  adapter: sqlite
-  dbfile: vendor/plugins/multilingual/test/test.sqlite.db
-
-sqlite3:
-  adapter: sqlite3
-  dbfile: vendor/plugins/multilingual/test/test.sqlite3.db

@@ -1,7 +1,7 @@
 require File.dirname(__FILE__) + '/test_helper'
 
 class TranslationTest < Test::Unit::TestCase
-  fixtures :translations, :products, :categories, :categories_products
+  fixtures :languages, :translations, :products, :categories, :categories_products
 
   class Product < ActiveRecord::Base
     has_and_belongs_to_many :categories
