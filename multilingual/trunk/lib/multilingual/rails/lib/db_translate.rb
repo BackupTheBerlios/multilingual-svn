@@ -8,30 +8,75 @@ module Multilingual
     module ClassMethods
 
       def translates(*facets)
-        @@facets = facets
-        
-        # add facets
-        attr_accessor(*facets)
 
-        extend(TranslateClassMethods)
-        include(TranslateObjectMethods)
+
+        class_eval <<-HERE
+          class << self
+            alias_method :multilingual_old_find_by_sql, :find_by_sql unless
+              respond_to? :multilingual_old_find_by_sql
+          end
+
+          include Multilingual::DbTranslate::TranslateObjectMethods
+          extend  Multilingual::DbTranslate::TranslateClassMethods
+
+          attr_accessor(*facets)
+          attr_accessor :multilingual_facets
+                
+        HERE
+        
+        self.multilingual_facets = facets             
       end
+
+    end
+
+    module TranslateObjectMethods
+      private    
+        def update_translation
+          language_id = Language.active_language.id
+
+          table_name = self.class.table_name
+          self.class.multilingual_facets.each do |facet|
+            text = send(facet)
+            next if text.nil? || text.empty?
+            tr = Translation.find(:first, :conditions =>
+              [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
+              table_name, id, facet.to_s, language_id ])
+            if tr.nil?
+              # create new record
+              Translation.create(:table_name => table_name, 
+                :item_id => id, :facet => facet.to_s, 
+                :language_id => language_id,
+                :text => text)
+            else 
+              # update record
+              tr.update_attribute(:text, text)
+            end
+          end
+        end
+
+        def segregate_facets(attributes)
+          return if attributes.nil?
+          self.class.multilingual_facets.each do |f|
+            val = attributes.delete(f)
+            send(f.to_s + '=', val) unless val.nil?
+          end
+        end      
     end
 
     module TranslateClassMethods
 
+      attr_accessor :multilingual_facets
+
       def facets_hash 
-        @@facets_hash ||= @@facets.inject({}) do |hash, facet| 
+        @@multilingual_facets_hash ||= @@multilingual_facets.inject({}) do |hash, facet| 
           hash[facet.to_s] = true; hash
         end
       end          
-
-      class_eval { "alias_method :old_find_by_sql, :find_by_sql" }
       
       def find_by_sql(sql)
 
         # get results from old find
-        results = old_find_by_sql(sql)
+        results = multilingual_old_find_by_sql(sql)
 
         inject_translations!(results)
 
@@ -94,37 +139,4 @@ module Multilingual
     end
   end
 
-  module TranslateObjectMethods
-    private    
-      def update_translation
-        language_id = Language.active_language.id
-
-        table_name = self.class.table_name
-        @@facets.each do |facet|
-          text = send(facet)
-          next if text.nil? || text.empty?
-          tr = Translation.find(:first, :conditions =>
-            [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
-            table_name, id, facet.to_s, language_id ])
-          if tr.nil?
-            # create new record
-            Translation.create(:table_name => table_name, 
-              :item_id => id, :facet => facet.to_s, 
-              :language_id => language_id,
-              :text => text)
-          else 
-            # update record
-            tr.update_attribute(:text, text)
-          end
-        end
-      end
-
-      def segregate_facets(attributes)
-        return if attributes.nil?
-        @@facets.each do |f|
-          val = attributes.delete(f)
-          send(f.to_s + '=', val) unless val.nil?
-        end
-      end      
-  end
 end
