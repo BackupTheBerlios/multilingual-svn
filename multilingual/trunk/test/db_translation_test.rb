@@ -26,6 +26,11 @@ class TranslationTest < Test::Unit::TestCase
     Language.active_language_code = 'en'
   end
 
+  def test_native_language
+    heb = Language.find_by_code("he")
+    assert_equal "עברית", heb.native_name
+  end
+
   def test_prod_tr_all
     prods = Product.find(:all, :order => "code" )
     assert_equal 2, prods.length
