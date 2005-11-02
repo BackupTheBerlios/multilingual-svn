@@ -44,9 +44,10 @@ else
   DEFAULT_MLR_LOG_PATH = "#{RAILS_ROOT}/log/translation-misses/%s.log"
 end  
 
-# Log format. %1$s is the current locale, %2$s is the missed string,
-# %3$s is the current time.
-DEFAULT_MLR_LOG_FORMAT = "%3$s: |%2$s|"
+# Log format. %1$s is the translation mode (application/content),
+# %2$s is the current locale, %3$s is the missed string,
+# %4$s is the current time.
+DEFAULT_MLR_LOG_FORMAT = "%4$s: [%1$s] |%3$s|"
   
 # ISO 3166 code to use. Can be :numeric, :alpha2 or :alpha3. Default is :numeric
 DEFAULT_MLR_ISO3166_CODE = 'numeric'

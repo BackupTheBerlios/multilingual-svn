@@ -99,18 +99,29 @@ module Multilingual
         end
 
         # set facets in items
+        missed_translations = {}
         active_lang_id = Language.active_language.id
         results.each do |item|
           arr = translated_items[item.id]
           arr && arr.each do |tr|
             facet = tr.facet
             rec_lang_id = tr.language_id
-            if active_lang_id == rec_lang_id || 
-                item.send( "#{facet}".to_sym ).nil?
+            
+            if active_lang_id == rec_lang_id
+              missed_translations[item] = false
               item.send( "#{facet}=".to_sym, tr.text )
-            end
+            elsif item.send( facet.to_sym ).nil?
+              missed_translations[item] = true
+              item.send( "#{facet}=".to_sym, tr.text )
+            else
+              missed_translations[item] = true
+            end            
           end
         end
+        
+        # log missed translations
+        log_missed(missed_translations)
+
       end
 
       private
@@ -133,6 +144,41 @@ module Multilingual
           conditions << " ( language_id = ? OR language_id = ? )"
           Translation.find(:all, :conditions => [ conditions, 
             table_name, language_id, base_language_id ])
+        end
+
+        def log_missed(missed_translations)
+          missed_translations.each do |item, missed|
+            next if !missed
+            
+            type = item.class.name
+            id_num = item.id
+            code = item.respond_to?(:label) ? item.label : nil
+            msg = "#{type}::#{id_num}"
+            msg << " (#{code})" if !code.nil?
+            @@log_path ||= false            
+            unless @@log_path
+              if Locale.const_defined? :MLR_LOG_PATH
+                @@log_path = MLR_LOG_PATH
+              else
+                @@log_path = DEFAULT_MLR_LOG_PATH
+              end
+            end
+            
+            @@log_format ||= false
+            unless @@log_format
+              if Locale.const_defined? :MLR_LOG_FORMAT
+                @@log_format = MLR_LOG_FORMAT
+              else
+                @@log_format = DEFAULT_MLR_LOG_FORMAT
+              end
+            end
+        
+            FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
+            RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current]).warn(
+              @@log_format % ['content', Locale.current, msg, Time.now.strftime('%Y-%m-%d %H:%M:%S')]
+            )
+            
+          end
         end
     end
   end

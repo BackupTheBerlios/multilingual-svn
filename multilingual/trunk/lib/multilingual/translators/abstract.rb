@@ -40,7 +40,7 @@ class Locale::AbstractTranslator
 
     FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
     RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current]).warn(
-      @@log_format % [Locale.current, string, Time.now.strftime('%Y-%m-%d %H:%M:%S')]
+      @@log_format % ['application', Locale.current, string, Time.now.strftime('%Y-%m-%d %H:%M:%S')]
     )
     @locales[locale][string] = [string]
     return string
