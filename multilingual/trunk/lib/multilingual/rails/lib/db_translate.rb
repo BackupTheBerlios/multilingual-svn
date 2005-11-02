@@ -20,7 +20,6 @@ module Multilingual
           extend  Multilingual::DbTranslate::TranslateClassMethods
 
           attr_accessor(*facets)
-          attr_accessor :multilingual_facets
                 
         HERE
         
@@ -64,11 +63,10 @@ module Multilingual
     end
 
     module TranslateClassMethods
-
-      attr_accessor :multilingual_facets
-
+          attr_accessor :multilingual_facets, :multilingual_facets_hash
+  
       def facets_hash 
-        @@multilingual_facets_hash ||= @@multilingual_facets.inject({}) do |hash, facet| 
+        self.multilingual_facets_hash ||= multilingual_facets.inject({}) do |hash, facet| 
           hash[facet.to_s] = true; hash
         end
       end          
