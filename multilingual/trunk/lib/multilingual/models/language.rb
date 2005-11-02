@@ -3,9 +3,10 @@
     validates_uniqueness_of :iso_639_1
     validates_presence_of :iso_639_1, :english_name
 
+    # language to be used for translation, set per request
     @@active_language_code = nil
 
-    # this is the language which will be presented by default
+    # default language to be used for translation, set per application
     @@default_language_code = nil  
 
     # this is the language which has complete coverage in the db

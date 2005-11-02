@@ -23,11 +23,11 @@ class TranslationTest < Test::Unit::TestCase
   end
 
   def setup
-    Language.active_language_code = 'en'
+    Locale.set("en_US")
   end
 
   def test_native_language
-    heb = Language.find_by_code("he")
+    heb = Language.pick("he")
     assert_equal "עברית", heb.native_name
   end
 
@@ -76,7 +76,7 @@ class TranslationTest < Test::Unit::TestCase
   end
 
   def test_base
-    Language.active_language_code = 'he'
+    Locale.set("he_IL")
     prod = Product.find(1)
     assert_equal "first-product", prod.code 
     assert_equal "these are the specs for the first product",

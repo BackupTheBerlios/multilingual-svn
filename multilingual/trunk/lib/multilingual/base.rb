@@ -54,3 +54,6 @@ DEFAULT_MLR_ISO3166_CODE = 'numeric'
 
 # Set default locale
 Locale.set(ENV['LC_ALL'] || ENV['LANG'] || 'en_US')
+
+# Set base language for content (language with complete coverage)
+Locale.set_base(ENV['LC_ALL'] || ENV['LANG'] || 'en_US')

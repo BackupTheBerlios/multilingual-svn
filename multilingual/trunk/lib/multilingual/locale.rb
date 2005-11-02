@@ -2,9 +2,17 @@ module Locale
   @@lang_data = {}
   @@country_data = {}
   
+  def self.set_base(locale)
+    @@base_locale = locale
+    @@base_language = locale.split('_').first
+    Language.base_language_code = @@base_language
+  end
+  def self.base_language; @@base_language; end
+  
   def self.set(locale)
     @@current_locale  = locale
-    @@current_country = locale.split('_')[1]
+    @@current_language, @@current_country = locale.split('_')
+    Language.active_language_code = @@current_language
     
     ['.utf8','.UTF-8','.utf-8','.UTF8',''].each do |encoding|
       begin
@@ -23,10 +31,17 @@ module Locale
     Date::DAYNAMES.replace @@lang_data[@@current_locale][:days]
     true
   end
+
   def self.current(full=false)
     return @@current_locale if full
     @@current_locale.split('.').first
   end
+
+  def self.current_language(full=false)
+    return @@current_language if full
+    @@current_language.split('.').first
+  end
+
   def self.reload!
     @@countries = {}
     @@languages = {}
