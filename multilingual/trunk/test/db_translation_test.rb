@@ -1,7 +1,8 @@
 require File.dirname(__FILE__) + '/test_helper'
 
 class TranslationTest < Test::Unit::TestCase
-  fixtures :languages, :translations, :products, :categories, :categories_products
+  fixtures :languages, :translations, :products, :manufacturers,
+    :categories, :categories_products
 
   class Product < ActiveRecord::Base
     has_and_belongs_to_many :categories
@@ -86,6 +87,7 @@ class TranslationTest < Test::Unit::TestCase
   end
 
   def test_habtm_translation
+    Locale.set("he_IL")
     cat = Category.find(1)
     prods = cat.products
     assert_equal 1, prods.length
@@ -93,13 +95,32 @@ class TranslationTest < Test::Unit::TestCase
     assert_equal "first-product", prod.code 
     assert_equal "these are the specs for the first product",
       prod.specs    
-    assert_equal "This is a description of the first product",
+    assert_equal "זהו תיאור המוצר הראשון",
       prod.description        
   end
 
   # test has_many translation
+  def test_has_many_translation
+    Locale.set("he_IL")
+    mfr = Manufacturer.find(1)
+    prods = mfr.products
+    assert_equal 2, prods.length
+    prod = prods.first
+    assert_equal "first-product", prod.code 
+    assert_equal "these are the specs for the first product",
+      prod.specs    
+    assert_equal "זהו תיאור המוצר הראשון",
+      prod.description        
+  end
 
-  # test belongs_to translation
+  def test_belongs_to_translation
+    Locale.set("he_IL")
+    prod = Product.find(1)
+    mfr = prod.manufacturer
+    assert_equal "first-mfr", mfr.code 
+    assert_equal "רברנד",
+      mfr.name
+  end
 
   def test_new
     prod = Product.new(:code => "new-product", :specs => "These are the product specs")
@@ -125,6 +146,5 @@ class TranslationTest < Test::Unit::TestCase
     assert_equal "Dummy", prod.specs
   end
 
-  # other association stuff? building?
-
+  # association building/creating?
 end

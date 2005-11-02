@@ -27,3 +27,11 @@ prod_1_facet_1_he_tr:
   facet: description
   language_id: 2
   text: זהו תיאור המוצר הראשון
+mfr_1_facet_1_he_tr:
+  id: 5
+  table_name: manufacturers
+  item_id: 1
+  facet: name
+  language_id: 2
+  text: רברנד
+    

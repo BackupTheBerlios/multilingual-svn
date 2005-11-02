@@ -1,14 +1,30 @@
-module Multilingual
-  module DbTranslate
+module Multilingual # :nodoc:
+  module DbTranslate  # :nodoc:
 
     def self.included(base)
       base.extend(ClassMethods)
     end
 
     module ClassMethods
-
-      def translates(*facets)
-
+=begin rdoc
+          Specifies fields that can be translated. These fields are stored in a
+          special translations tables, not in the model table.
+          
+          === Example:
+          
+          ==== In model:
+            class Product < ActiveRecord::Base
+              translates :name, :description
+            end
+          
+          ==== In controller:
+            Locale.set("en_US")
+            product.name -> guitar
+            
+            Locale.set("es_ES")
+            product.name -> guitarra
+=end
+        def translates(*facets)
 
         class_eval <<-HERE
           class << self
@@ -28,7 +44,7 @@ module Multilingual
 
     end
 
-    module TranslateObjectMethods
+    module TranslateObjectMethods # :nodoc: all
       private    
         def update_translation
           language_id = Language.active_language.id
@@ -62,9 +78,9 @@ module Multilingual
         end      
     end
 
-    module TranslateClassMethods
-          attr_accessor :multilingual_facets, :multilingual_facets_hash
-  
+    module TranslateClassMethods  # :nodoc: all
+      attr_accessor :multilingual_facets, :multilingual_facets_hash
+
       def facets_hash 
         self.multilingual_facets_hash ||= multilingual_facets.inject({}) do |hash, facet| 
           hash[facet.to_s] = true; hash

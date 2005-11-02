@@ -2,6 +2,8 @@
 first_product:
   id: 1
   code: first-product
+  manufacturer_id: 1
 second_product:
   id: 2
   code: second-product
+  manufacturer_id: 1
