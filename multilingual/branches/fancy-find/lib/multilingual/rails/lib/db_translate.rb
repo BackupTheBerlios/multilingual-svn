@@ -24,21 +24,22 @@ module Multilingual # :nodoc:
             Locale.set("es_ES")
             product.name -> guitarra
 =end
-        def translates(*facets)
+      def translates(*facets)
 
         class_eval <<-HERE
           class << self
-            alias_method :multilingual_old_find_by_sql, :find_by_sql unless
-              respond_to? :multilingual_old_find_by_sql
+            alias_method :untranslated_find, :find unless
+              respond_to? :untranslated_find
+            alias_method :old_find_by_sql, :find_by_sql unless
+              respond_to? :old_find_by_sql
           end
-
+        
           include Multilingual::DbTranslate::TranslateObjectMethods
           extend  Multilingual::DbTranslate::TranslateClassMethods
-
-          attr_accessor(*facets)
                 
         HERE
-        
+      
+        attr_accessor *facets
         self.multilingual_facets = facets             
       end
 
@@ -69,98 +70,81 @@ module Multilingual # :nodoc:
           end
         end
 
-        def segregate_facets(attributes)
-          return if attributes.nil?
-          self.class.multilingual_facets.each do |f|
-            val = attributes.delete(f)
-            send(f.to_s + '=', val) unless val.nil?
-          end
-        end      
     end
 
     module TranslateClassMethods  # :nodoc: all
       attr_accessor :multilingual_facets, :multilingual_facets_hash
-
-      def facets_hash 
-        self.multilingual_facets_hash ||= multilingual_facets.inject({}) do |hash, facet| 
-          hash[facet.to_s] = true; hash
-        end
-      end          
       
+      def find(*args)
+        options = args.last.is_a?(Hash) ? args.last : {}
+
+        return untranslated_find(*args) if args.first != :all
+
+
+        raise ":joins option not allowed on translatable models" if options.has_key?(:joins)
+        raise ":select option not allowed on translatable models" if options.has_key?(:select)
+
+        language_id = Language.active_language.id
+        base_language_id = Language.base_language.id
+
+        facets = multilingual_facets
+        select_clause = "#{table_name}.* "
+        joins_clause = ""
+        active_joins_args = []
+        base_joins_args   = []
+        facets.each do |facet| 
+          facet = facet.to_s
+          facet_alias = "t_#{facet}"
+          select_clause << ", #{facet_alias}.text AS #{facet} "
+          joins_clause  << "LEFT OUTER JOIN translations AS #{facet_alias} " +
+            "ON #{facet_alias}.table_name = ? " +
+            "AND #{table_name}.#{primary_key} = #{facet_alias}.item_id " +
+            "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
+          active_joins_args << table_name << facet << language_id            
+          base_joins_args << table_name << facet << base_language_id            
+        end
+
+        options[:select] = select_clause
+
+        sanitized_joins_clause = sanitize_sql( [ joins_clause, *base_joins_args ] )
+        options[:joins] = sanitized_joins_clause
+        base_results = untranslated_find(:all, options)
+        base_map = {}
+        base_results.each do |result|
+          base_map[result.id] ||= {}
+          facets.each do |facet|
+            base_map[result.id][facet] = result.send(facet)
+          end
+        end
+        base_results = nil    # try to free up some memory
+
+        sanitized_joins_clause = sanitize_sql( [ joins_clause, *active_joins_args ] )
+        options[:joins] = sanitized_joins_clause
+        active_results = untranslated_find(:all, options)
+
+        # substitute base facets where needed
+        active_results.each do |result|
+          facets.each do |facet|
+            result.send("#{facet}=", base_map[result.id][facet]) if
+              result.send(facet).nil?
+          end          
+        end
+
+        active_results
+      end
+
+=begin
       def find_by_sql(sql)
-
-        # get results from old find
-        results = multilingual_old_find_by_sql(sql)
-
-        inject_translations!(results)
-
-        # return items
+        p sanitize_sql(sql)
+        results = connection.select_all(sanitize_sql(sql), "#{name} Load")
+        p results
+        results = old_find_by_sql(sql)
+        p results
         results
       end
-
-      def inject_translations!(results)
-
-        results = [ results ] if !results.kind_of? Array
-        return if results.empty?
-        trs = fetch_translations(results)
-
-        # organize translations by item (hash of items containing arrays of facets)
-        translated_items = Hash.new
-        trs.each do |tr|
-          item_id = tr.item_id
-          arr = translated_items[item_id]
-          arr ||= Array.new
-          arr.push(tr)
-          translated_items[item_id] = arr
-        end
-
-        # set facets in items
-        missed_translations = {}
-        active_lang_id = Language.active_language.id
-        results.each do |item|
-          arr = translated_items[item.id]
-          arr && arr.each do |tr|
-            facet = tr.facet
-            rec_lang_id = tr.language_id
-            
-            if active_lang_id == rec_lang_id
-              missed_translations[item] = false
-              item.send( "#{facet}=".to_sym, tr.text )
-            elsif item.send( facet.to_sym ).nil?
-              missed_translations[item] = true
-              item.send( "#{facet}=".to_sym, tr.text )
-            else
-              missed_translations[item] = true
-            end            
-          end
-        end
-        
-        # log missed translations
-        log_missed(missed_translations)
-
-      end
+=end
 
       private
-        def fetch_translations(results)
-          active_language = Language.active_language
-          raise "no active language" if active_language.nil?
-          language_id = active_language.id
-          base_language_id = Language.base_language.id
-
-          item_ids = results.collect {|r| sanitize(r.id) }
-          item_ids.uniq!
-
-          conditions = "table_name = ? AND "
-          if item_ids.size == 1
-            conditions << "item_id = #{item_ids.first} AND "
-          else 
-            item_id_list = item_ids.join(',')
-            conditions << "item_id IN (#{item_id_list}) AND "
-          end
-          conditions << " ( language_id = ? OR language_id = ? )"
-          Translation.find(:all, :conditions => [ conditions, 
-            table_name, language_id, base_language_id ])
-        end
 
         def log_missed(missed_translations)
           missed_translations.each do |item, missed|

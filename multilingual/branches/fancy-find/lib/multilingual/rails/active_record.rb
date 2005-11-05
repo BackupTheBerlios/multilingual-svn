@@ -73,27 +73,21 @@ require 'multilingual/rails/lib/db_translate'
 class ActiveRecord::Base
   include Multilingual::DbTranslate
 
-  alias_method :multilingual_old_initialize, :initialize
   alias_method :multilingual_old_update, :update
   alias_method :multilingual_old_create, :create
 
   def self.translatable?; respond_to?(:inject_translations!); end
 
-  def initialize(attributes = nil)
-    # delete translatable facets from attributes, assign them to facets
-    segregate_facets(attributes) if self.class.translatable?
-
-    multilingual_old_initialize(attributes)
-  end
-
   private
     # inject translations when creating/updating
     def update
+      raise
       multilingual_old_update
       update_translation if self.class.translatable?
     end
 
     def create
+      raise
       multilingual_old_create
       update_translation if self.class.translatable?
     end
