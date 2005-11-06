@@ -30,9 +30,11 @@ module Multilingual # :nodoc:
 
         facets_string = "[" + facets.map {|facet| ":#{facet}"}.join(", ") + "]"
         class_eval <<-HERE
-
+          attr_writer :fully_loaded
+          def fully_loaded?; @fully_loaded; end
+          @@multilingual_facets = #{facets_string}
+          @@preload_facets ||= [ @@multilingual_facets.first ]
           class << self
-            @@multilingual_facets = #{facets_string}
 
             def multilingual_facets
               @@multilingual_facets
@@ -43,7 +45,11 @@ module Multilingual # :nodoc:
                 hash[facet.to_s] = true; hash
               }
             end            
-            
+
+            def preload_facets; @@preload_facets; end
+            def postload_facets
+              @@postload_facets ||= @@multilingual_facets - @@preload_facets
+            end
             alias_method :untranslated_find, :find unless
               respond_to? :untranslated_find
           end
@@ -63,6 +69,8 @@ module Multilingual # :nodoc:
                   "object was loaded as \#{@original_language.english_name}, " +
                   "referenced as \#{Language.active_language.english_name}"
               end
+              load_other_translations if 
+                !fully_loaded? && !self.class.preload_facets.include?(:#{facet})
               read_attribute(:#{facet})
             end
 
@@ -78,6 +86,31 @@ module Multilingual # :nodoc:
 
       end
 
+=begin rdoc
+      Optionally specifies translated fields to be preloaded on find. For instance,
+      in a product catalog, you may want to do a find of the first 10 products:
+
+        Product.find(:all, :limit => 10, :order => "name"
+
+      But you wouldn't want to load the complete descriptions and specs of all the
+      products, just the names and summaries. So you'd specify:
+
+        class Product < ActiveRecord::Base
+          translates :name, :summary, :description, :specs
+          translates_preload :name, :summary
+          ...
+        end
+
+      By default (if no translates_preload is specified), Multilingual will preload
+      the first field given to <tt>translates</tt>. It will also fully load on
+      a <tt>find(:first)</tt> or when <tt>:translate_all => true</tt> is given as a find option.
+=end
+      module_eval <<-HERE
+      def translates_preload(*facets)
+        @@preload_facets = facets
+      end
+      HERE
+
     end
 
     module TranslateObjectMethods # :nodoc: all
@@ -92,6 +125,20 @@ module Multilingual # :nodoc:
         @original_language = Language.active_language      
       end
       HERE
+
+      def load_other_translations
+        postload_facets = self.class.postload_facets
+        return if postload_facets.empty?
+        trs = Translation.find(:all, 
+          :conditions => [ "table_name = ? AND item_id = ? AND language_id = ? AND " +
+          "facet IN (#{[ '?' ] * postload_facets.size * ', '})", self.class.table_name,
+          self.id, Language.active_language.id ] + postload_facets.map {|facet| facet.to_s} )
+        trs ||= []
+        trs.each do |tr|
+          write_attribute(tr.facet, tr.text)
+        end
+        fully_loaded = true
+      end
 
       def reload
         multilingual_old_reload
@@ -169,7 +216,13 @@ module Multilingual # :nodoc:
       def find(*args)
         options = args.last.is_a?(Hash) ? args.last : {}
 
-        return untranslated_find(*args) if args.first != :all
+        find_type = args.first
+        if find_type == :first
+          options[:translate_all] = true
+          return untranslated_find(:first, options)
+        elsif find_type != :all
+          return untranslated_find(*args)
+        end
 
         raise ":select option not allowed on translatable models" if options.has_key?(:select)
         options[:conditions] = fix_conditions(options[:conditions]) if options[:conditions]
@@ -177,7 +230,8 @@ module Multilingual # :nodoc:
         language_id = Language.active_language.id
         base_language_id = Language.base_language.id
 
-        facets = multilingual_facets
+        load_full = options[:translate_all]
+        facets = load_full ? multilingual_facets : preload_facets
         select_clause = "#{table_name}.* "
         joins_clause = options[:joins].nil? ? "" : options[:joins].dup
         joins_args = []
@@ -200,8 +254,16 @@ module Multilingual # :nodoc:
         options[:joins] = sanitized_joins_clause
         results = untranslated_find(:all, options)
 
-        results.each {|result| result.set_original_language }
+        results.each {|result| 
+          result.set_original_language
+          result.fully_loaded = true if load_full
+        }
       end
+
+      protected
+        def validate_find_options(options)
+          options.assert_valid_keys [:conditions, :include, :joins, :limit, :offset, :order, :select, :readonly, :translate_all]
+        end
 
       private
 
