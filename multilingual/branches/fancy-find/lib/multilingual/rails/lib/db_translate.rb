@@ -26,13 +26,28 @@ module Multilingual # :nodoc:
 =end
       def translates(*facets)
 
+        facets_string = "[" + facets.map {|facet| ":#{facet}"}.join(", ") + "]"
         class_eval <<-HERE
+
           class << self
+            @@multilingual_facets = #{facets_string}
+
+            def multilingual_facets
+              @@multilingual_facets
+            end
+
+            def multilingual_facets_hash
+              @@multilingual_facets_hash ||= multilingual_facets.inject({}) {|hash, facet|
+                hash[facet.to_s] = true; hash
+              }
+            end            
+            
             alias_method :untranslated_find, :find unless
               respond_to? :untranslated_find
             alias_method :old_find_by_sql, :find_by_sql unless
               respond_to? :old_find_by_sql
           end
+          alias_method :multilingual_old_create_or_update, :create_or_update
         
           include Multilingual::DbTranslate::TranslateObjectMethods
           extend  Multilingual::DbTranslate::TranslateClassMethods        
@@ -51,13 +66,18 @@ module Multilingual # :nodoc:
           HERE
         end
 
-        self.multilingual_facets = facets             
       end
 
     end
 
     module TranslateObjectMethods # :nodoc: all
       private    
+
+        def create_or_update
+          multilingual_old_create_or_update
+          update_translation
+        end
+        
         def update_translation
           language_id = Language.active_language.id
 
@@ -84,7 +104,6 @@ module Multilingual # :nodoc:
     end
 
     module TranslateClassMethods  # :nodoc: all
-      attr_accessor :multilingual_facets, :multilingual_facets_hash
       
       def find(*args)
         options = args.last.is_a?(Hash) ? args.last : {}
@@ -92,13 +111,15 @@ module Multilingual # :nodoc:
         return untranslated_find(*args) if args.first != :all
 
         raise ":select option not allowed on translatable models" if options.has_key?(:select)
+        options[:conditions] = fix_conditions(options[:conditions]) if options[:conditions]
 
         language_id = Language.active_language.id
         base_language_id = Language.base_language.id
 
         facets = multilingual_facets
         select_clause = "#{table_name}.* "
-        joins_clause = options[:joins] || ""
+        joins_clause = options[:joins].nil? ? "" : options[:joins].dup
+
         active_joins_args = []
         base_joins_args   = []
         facets.each do |facet| 
@@ -130,7 +151,7 @@ module Multilingual # :nodoc:
           base_results = nil    # try to free up some memory
         end
 
-        sanitized_joins_clause = sanitize_sql( [ joins_clause, *active_joins_args ] )
+        sanitized_joins_clause = sanitize_sql( [ joins_clause, *active_joins_args ] )        
         options[:joins] = sanitized_joins_clause
         active_results = untranslated_find(:all, options)
 
@@ -154,6 +175,25 @@ module Multilingual # :nodoc:
       end
 
       private
+
+        # properly scope conditions to table
+        def fix_conditions(conditions)
+          if conditions.kind_of? Array          
+            is_array = true
+            sql = conditions.shift
+          else
+            is_array = false
+            sql = conditions
+          end
+          column_names.each do |column_name|
+            sql.gsub!(/([^\.\w])(#{column_name})(\W)/, '\1' + table_name + '.\2\3')
+          end
+          if is_array
+            [ sql ] + conditions
+          else
+            sql
+          end
+        end
 
         def log_missed(missed_translations)
           @@log_path ||= false            

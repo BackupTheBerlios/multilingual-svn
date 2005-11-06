@@ -67,38 +67,7 @@ class ActiveRecord::Errors
   end
 end
 
-#=begin
-# Add in translation stuff to AR
 require 'multilingual/rails/lib/db_translate'
 class ActiveRecord::Base
   include Multilingual::DbTranslate
-
-  alias_method :multilingual_old_create_or_update, :create_or_update
-
-  def self.translatable?; respond_to?(:multilingual_facets); end
-
-  private
-    def create_or_update
-      multilingual_old_create_or_update
-      update_translation if self.class.translatable?
-    end
 end
-
-=begin
-module ActiveRecord
-  module Associations
-    class AssociationProxy 
-	    alias_method :multilingual_old_load_target, :load_target
-
-      private
-        # inject translations into associations
-        def load_target
-          multilingual_old_load_target
-          if @target && @association_class.translatable?
-            @association_class.inject_translations!(@target)
-          end
-        end
-    end
-  end
-end
-=end
