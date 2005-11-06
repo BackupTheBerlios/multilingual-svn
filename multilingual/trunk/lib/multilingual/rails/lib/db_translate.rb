@@ -165,14 +165,7 @@ module Multilingual # :nodoc:
 
         sanitized_joins_clause = sanitize_sql( [ joins_clause, *joins_args ] )        
         options[:joins] = sanitized_joins_clause
-        active_results = untranslated_find(:all, options)
-
-=begin
-                missed << facet
-            missed_items << [ result, missed ] if !missed.empty?
-          log_missed(missed_items) if !missed_items.empty?
-=end
-        active_results
+        untranslated_find(:all, options)
       end
 
       private
@@ -196,41 +189,6 @@ module Multilingual # :nodoc:
           end
         end
 
-        def log_missed(missed_translations)
-          @@log_path ||= false            
-          unless @@log_path
-            if Locale.const_defined? :MLR_LOG_PATH
-              @@log_path = MLR_LOG_PATH
-            else
-              @@log_path = DEFAULT_MLR_LOG_PATH
-            end
-          end
-          
-          @@log_format ||= false
-          unless @@log_format
-            if Locale.const_defined? :MLR_LOG_FORMAT
-              @@log_format = MLR_LOG_FORMAT
-            else
-              @@log_format = DEFAULT_MLR_LOG_FORMAT
-            end
-          end
-      
-          FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
-          logger = RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current])
-          
-          missed_translations.each do |item, facets|            
-            type = item.class.name
-            id_num = item.id
-            code = item.respond_to?(:label) ? item.label : nil
-            facet_text = facets.join(", ")
-            msg = "#{type}::#{id_num}"
-            msg << " (#{code}) #{facet_text}" if !code.nil?
- 
-            logger.warn(
-              @@log_format % ['content', Locale.current, msg, Time.now.strftime('%Y-%m-%d %H:%M:%S')]
-            )            
-          end
-        end
     end
   end
 
