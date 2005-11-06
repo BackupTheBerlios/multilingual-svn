@@ -136,62 +136,58 @@ module Multilingual # :nodoc:
 
         if base_language_id != language_id
           # substitute base facets where needed
+          missed_items = []
           active_results.each do |result|
+            missed = []
             facets.each do |facet|
-              result.send("#{facet}=", base_map[result.id][facet]) if
-                result.send(facet).nil?
+              if result.send(facet).nil?
+                result.send("#{facet}=", base_map[result.id][facet])
+                missed << facet
+              end
             end          
+            missed_items << [ result, missed ] if !missed.empty?
           end
+          log_missed(missed_items) if !missed_items.empty?
         end
 
         active_results
       end
 
-=begin
-      def find_by_sql(sql)
-        p sanitize_sql(sql)
-        results = connection.select_all(sanitize_sql(sql), "#{name} Load")
-        p results
-        results = old_find_by_sql(sql)
-        p results
-        results
-      end
-=end
-
       private
 
         def log_missed(missed_translations)
-          missed_translations.each do |item, missed|
-            next if !missed
-            
+          @@log_path ||= false            
+          unless @@log_path
+            if Locale.const_defined? :MLR_LOG_PATH
+              @@log_path = MLR_LOG_PATH
+            else
+              @@log_path = DEFAULT_MLR_LOG_PATH
+            end
+          end
+          
+          @@log_format ||= false
+          unless @@log_format
+            if Locale.const_defined? :MLR_LOG_FORMAT
+              @@log_format = MLR_LOG_FORMAT
+            else
+              @@log_format = DEFAULT_MLR_LOG_FORMAT
+            end
+          end
+      
+          FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
+          logger = RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current])
+          
+          missed_translations.each do |item, facets|            
             type = item.class.name
             id_num = item.id
             code = item.respond_to?(:label) ? item.label : nil
+            facet_text = facets.join(", ")
             msg = "#{type}::#{id_num}"
-            msg << " (#{code})" if !code.nil?
-            @@log_path ||= false            
-            unless @@log_path
-              if Locale.const_defined? :MLR_LOG_PATH
-                @@log_path = MLR_LOG_PATH
-              else
-                @@log_path = DEFAULT_MLR_LOG_PATH
-              end
-            end
-            
-            @@log_format ||= false
-            unless @@log_format
-              if Locale.const_defined? :MLR_LOG_FORMAT
-                @@log_format = MLR_LOG_FORMAT
-              else
-                @@log_format = DEFAULT_MLR_LOG_FORMAT
-              end
-            end
-        
-            FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
-            RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current]).warn(
+            msg << " (#{code}) #{facet_text}" if !code.nil?
+ 
+            logger.warn(
               @@log_format % ['content', Locale.current, msg, Time.now.strftime('%Y-%m-%d %H:%M:%S')]
-            )
-            
+            )            
           end
         end
     end
