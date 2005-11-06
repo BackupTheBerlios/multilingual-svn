@@ -24,28 +24,60 @@ module Multilingual # :nodoc:
             Locale.set("es_ES")
             product.name -> guitarra
 =end
-        def translates(*facets)
+      def translates(*facets)
 
+        facets_string = "[" + facets.map {|facet| ":#{facet}"}.join(", ") + "]"
         class_eval <<-HERE
+
           class << self
-            alias_method :multilingual_old_find_by_sql, :find_by_sql unless
-              respond_to? :multilingual_old_find_by_sql
+            @@multilingual_facets = #{facets_string}
+
+            def multilingual_facets
+              @@multilingual_facets
+            end
+
+            def multilingual_facets_hash
+              @@multilingual_facets_hash ||= multilingual_facets.inject({}) {|hash, facet|
+                hash[facet.to_s] = true; hash
+              }
+            end            
+            
+            alias_method :untranslated_find, :find unless
+              respond_to? :untranslated_find
+            alias_method :old_find_by_sql, :find_by_sql unless
+              respond_to? :old_find_by_sql
           end
-
-          include Multilingual::DbTranslate::TranslateObjectMethods
-          extend  Multilingual::DbTranslate::TranslateClassMethods
-
-          attr_accessor(*facets)
-                
-        HERE
+          alias_method :multilingual_old_create_or_update, :create_or_update
         
-        self.multilingual_facets = facets             
+          include Multilingual::DbTranslate::TranslateObjectMethods
+          extend  Multilingual::DbTranslate::TranslateClassMethods        
+
+        HERE
+
+        facets.each do |facet|
+          class_eval <<-HERE
+            def #{facet}
+              read_attribute(:#{facet})
+            end
+
+            def #{facet}=(arg)
+              write_attribute(:#{facet}, arg)
+            end
+          HERE
+        end
+
       end
 
     end
 
     module TranslateObjectMethods # :nodoc: all
       private    
+
+        def create_or_update
+          multilingual_old_create_or_update
+          update_translation
+        end
+        
         def update_translation
           language_id = Language.active_language.id
 
@@ -69,131 +101,133 @@ module Multilingual # :nodoc:
           end
         end
 
-        def segregate_facets(attributes)
-          return if attributes.nil?
-          self.class.multilingual_facets.each do |f|
-            val = attributes.delete(f)
-            send(f.to_s + '=', val) unless val.nil?
-          end
-        end      
     end
 
     module TranslateClassMethods  # :nodoc: all
-      attr_accessor :multilingual_facets, :multilingual_facets_hash
-
-      def facets_hash 
-        self.multilingual_facets_hash ||= multilingual_facets.inject({}) do |hash, facet| 
-          hash[facet.to_s] = true; hash
-        end
-      end          
       
-      def find_by_sql(sql)
+      def find(*args)
+        options = args.last.is_a?(Hash) ? args.last : {}
 
-        # get results from old find
-        results = multilingual_old_find_by_sql(sql)
+        return untranslated_find(*args) if args.first != :all
 
-        inject_translations!(results)
+        raise ":select option not allowed on translatable models" if options.has_key?(:select)
+        options[:conditions] = fix_conditions(options[:conditions]) if options[:conditions]
 
-        # return items
-        results
-      end
+        language_id = Language.active_language.id
+        base_language_id = Language.base_language.id
 
-      def inject_translations!(results)
+        facets = multilingual_facets
+        select_clause = "#{table_name}.* "
+        joins_clause = options[:joins].nil? ? "" : options[:joins].dup
 
-        results = [ results ] if !results.kind_of? Array
-        return if results.empty?
-        trs = fetch_translations(results)
-
-        # organize translations by item (hash of items containing arrays of facets)
-        translated_items = Hash.new
-        trs.each do |tr|
-          item_id = tr.item_id
-          arr = translated_items[item_id]
-          arr ||= Array.new
-          arr.push(tr)
-          translated_items[item_id] = arr
+        active_joins_args = []
+        base_joins_args   = []
+        facets.each do |facet| 
+          facet = facet.to_s
+          facet_alias = "t_#{facet}"
+          select_clause << ", #{facet_alias}.text AS #{facet} "
+          joins_clause  << " LEFT OUTER JOIN translations AS #{facet_alias} " +
+            "ON #{facet_alias}.table_name = ? " +
+            "AND #{table_name}.#{primary_key} = #{facet_alias}.item_id " +
+            "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
+          active_joins_args << table_name << facet << language_id            
+          base_joins_args << table_name << facet << base_language_id            
         end
 
-        # set facets in items
-        missed_translations = {}
-        active_lang_id = Language.active_language.id
-        results.each do |item|
-          arr = translated_items[item.id]
-          arr && arr.each do |tr|
-            facet = tr.facet
-            rec_lang_id = tr.language_id
-            
-            if active_lang_id == rec_lang_id
-              missed_translations[item] = false
-              item.send( "#{facet}=".to_sym, tr.text )
-            elsif item.send( facet.to_sym ).nil?
-              missed_translations[item] = true
-              item.send( "#{facet}=".to_sym, tr.text )
-            else
-              missed_translations[item] = true
-            end            
+        options[:select] = select_clause
+        options[:readonly] = false
+
+        if base_language_id != language_id
+          sanitized_joins_clause = sanitize_sql( [ joins_clause, *base_joins_args ] )
+          options[:joins] = sanitized_joins_clause
+          base_results = untranslated_find(:all, options)
+          base_map = {}
+          base_results.each do |result|
+            base_map[result.id] ||= {}
+            facets.each do |facet|
+              base_map[result.id][facet] = result.send(facet)
+            end
           end
+          base_results = nil    # try to free up some memory
         end
-        
-        # log missed translations
-        log_missed(missed_translations)
 
+        sanitized_joins_clause = sanitize_sql( [ joins_clause, *active_joins_args ] )        
+        options[:joins] = sanitized_joins_clause
+        active_results = untranslated_find(:all, options)
+
+        if base_language_id != language_id
+          # substitute base facets where needed
+          missed_items = []
+          active_results.each do |result|
+            missed = []
+            facets.each do |facet|
+              if result.send(facet).nil?
+                result.send("#{facet}=", base_map[result.id][facet])
+                missed << facet
+              end
+            end          
+            missed_items << [ result, missed ] if !missed.empty?
+          end
+          log_missed(missed_items) if !missed_items.empty?
+        end
+
+        active_results
       end
 
       private
-        def fetch_translations(results)
-          active_language = Language.active_language
-          raise "no active language" if active_language.nil?
-          language_id = active_language.id
-          base_language_id = Language.base_language.id
 
-          item_ids = results.collect {|r| sanitize(r.id) }
-          item_ids.uniq!
-
-          conditions = "table_name = ? AND "
-          if item_ids.size == 1
-            conditions << "item_id = #{item_ids.first} AND "
-          else 
-            item_id_list = item_ids.join(',')
-            conditions << "item_id IN (#{item_id_list}) AND "
+        # properly scope conditions to table
+        def fix_conditions(conditions)
+          if conditions.kind_of? Array          
+            is_array = true
+            sql = conditions.shift
+          else
+            is_array = false
+            sql = conditions
           end
-          conditions << " ( language_id = ? OR language_id = ? )"
-          Translation.find(:all, :conditions => [ conditions, 
-            table_name, language_id, base_language_id ])
+          column_names.each do |column_name|
+            sql.gsub!(/([^\.\w])(#{column_name})(\W)/, '\1' + table_name + '.\2\3')
+          end
+          if is_array
+            [ sql ] + conditions
+          else
+            sql
+          end
         end
 
         def log_missed(missed_translations)
-          missed_translations.each do |item, missed|
-            next if !missed
-            
+          @@log_path ||= false            
+          unless @@log_path
+            if Locale.const_defined? :MLR_LOG_PATH
+              @@log_path = MLR_LOG_PATH
+            else
+              @@log_path = DEFAULT_MLR_LOG_PATH
+            end
+          end
+          
+          @@log_format ||= false
+          unless @@log_format
+            if Locale.const_defined? :MLR_LOG_FORMAT
+              @@log_format = MLR_LOG_FORMAT
+            else
+              @@log_format = DEFAULT_MLR_LOG_FORMAT
+            end
+          end
+      
+          FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
+          logger = RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current])
+          
+          missed_translations.each do |item, facets|            
             type = item.class.name
             id_num = item.id
             code = item.respond_to?(:label) ? item.label : nil
+            facet_text = facets.join(", ")
             msg = "#{type}::#{id_num}"
-            msg << " (#{code})" if !code.nil?
-            @@log_path ||= false            
-            unless @@log_path
-              if Locale.const_defined? :MLR_LOG_PATH
-                @@log_path = MLR_LOG_PATH
-              else
-                @@log_path = DEFAULT_MLR_LOG_PATH
-              end
-            end
-            
-            @@log_format ||= false
-            unless @@log_format
-              if Locale.const_defined? :MLR_LOG_FORMAT
-                @@log_format = MLR_LOG_FORMAT
-              else
-                @@log_format = DEFAULT_MLR_LOG_FORMAT
-              end
-            end
-        
-            FileUtils.mkdir_p File.dirname(@@log_path % [Locale.current])
-            RAILS_DEFAULT_LOGGER.class.new(@@log_path % [Locale.current]).warn(
+            msg << " (#{code}) #{facet_text}" if !code.nil?
+ 
+            logger.warn(
               @@log_format % ['content', Locale.current, msg, Time.now.strftime('%Y-%m-%d %H:%M:%S')]
-            )
-            
+            )            
           end
         end
     end
