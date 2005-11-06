@@ -6,6 +6,7 @@ module Multilingual # :nodoc:
     end
 
     class WrongLanguageError < ActiveRecord::ActiveRecordError; end
+    class TranslationTrampleError < ActiveRecord::ActiveRecordError; end
 
     module ClassMethods
 =begin rdoc

@@ -16,3 +16,10 @@ hebrew:
   native_name: עברית
   scope: L
   macro_language: false
+
+urdu:
+  id: 3
+  iso_639_1: ur
+  english_name: Urdu
+  scope: L
+  macro_language: false

@@ -17,29 +17,33 @@ class Language < ActiveRecord::Base
   def self.active_language_code 
     @@active_language_code || self.default_language_code
   end
-  def self.active_language_code=(lang); @@active_language_code = lang; end
-
-  def self.default_language_code
-    @@default_language_code or 'en' 
+  def self.active_language_code=(lang)
+    @@active_language = nil
+    @@active_language_code = lang
   end
-  def self.default_language_code=(lang); @@default_language_code = lang; end
 
   def self.base_language_code
     @@base_language_code or self.default_language_code or 'en'
   end
-  def self.base_language_code=(lang); @@base_language_code = lang; end
+  def self.base_language_code=(lang)
+    @@base_language = nil
+    @@base_language_code = lang
+  end
 
   def self.supported_language_codes
     @@supported_language_codes || [ 'en' ]
   end
-  def self.supported_language_codes=(codes); @@supported_language_codes = codes; end
+  def self.supported_language_codes=(codes)     
+    @@supported_languages = nil
+    @@supported_language_codes = codes
+  end
 
   def self.pick(code); self.find_by_code(code); end
 
-  def self.active_language; pick(self.active_language_code); end
-  def self.base_language; pick(self.base_language_code); end
+  def self.active_language; @@active_language ||= pick(self.active_language_code); end
+  def self.base_language; @@active_base_language ||= pick(self.base_language_code); end
   def self.supported_languages 
-    supported_language_codes.map {|code| pick(code) }
+    @@supported_languages ||= supported_language_codes.map {|code| pick(code) }
   end
 
   def self.find_by_code(code)
@@ -71,4 +75,5 @@ class Language < ActiveRecord::Base
   def self.all
     self.find(:all, :order => "position")
   end
+
 end

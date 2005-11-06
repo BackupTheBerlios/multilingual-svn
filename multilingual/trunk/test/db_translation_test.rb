@@ -226,5 +226,18 @@ class TranslationTest < Test::Unit::TestCase
     }
   end
 
+  def test_add_supported
+    urdu = Language.pick('ur')
+    assert_not_nil urdu
+    Multilingual::Translation.initialize_supported_language(urdu)
+    Locale.set('ur')
+    prod = Product.find(:first)
+    assert_equal "first-product", prod.code 
+    assert_equal "these are the specs for the first product",
+      prod.specs    
+    assert_equal "This is a description of the first product",
+      prod.description    
+  end
+
   # association building/creating?
 end
