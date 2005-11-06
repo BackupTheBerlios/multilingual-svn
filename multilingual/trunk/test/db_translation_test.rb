@@ -34,15 +34,15 @@ class TranslationTest < Test::Unit::TestCase
 
   def test_prod_tr_all
     prods = Product.find(:all, :order => "code" )
-    assert_equal 2, prods.length
-    assert_equal "first-product", prods[0].code 
-    assert_equal "second-product", prods[1].code 
+    assert_equal 5, prods.length
+    assert_equal "first-product", prods[1].code 
+    assert_equal "second-product", prods[3].code 
     assert_equal "these are the specs for the first product",
-      prods[0].specs    
+      prods[1].specs    
     assert_equal "This is a description of the first product",
-      prods[0].description    
+      prods[1].description    
     assert_equal "these are the specs for the second product",
-      prods[1].specs
+      prods[3].specs
   end
 
   def test_prod_tr_first
@@ -104,7 +104,7 @@ class TranslationTest < Test::Unit::TestCase
     Locale.set("he_IL")
     mfr = Manufacturer.find(1)
     prods = mfr.products
-    assert_equal 2, prods.length
+    assert_equal 5, prods.length
     prod = prods.first
     assert_equal "first-product", prod.code 
     assert_equal "these are the specs for the first product",
@@ -146,5 +146,45 @@ class TranslationTest < Test::Unit::TestCase
     assert_equal "Dummy", prod.specs
   end
 
+=begin
+  # Too difficult for now
+  def test_include
+    Locale.set("he_IL")
+    prods = Product.find(:all, :include => :manufacturer)
+    assert_equal 2, prods.size
+    p prods.first
+    assert_equal "זהו תיאור המוצר הראשון", prods.first.description
+    assert_equal "first-mfr", prods.first.manufacturer.code
+    assert_equal "רברנד", prods.first.manufacturer.name
+    assert_equal "רברנד", prods.last.manufacturer.name
+  end
+=end
+
+  # Doesn't pull in translations
+  def test_include
+    prods = Product.find(:all, :include => :manufacturer)
+    assert_equal 5, prods.size
+    assert_equal "first-mfr", prods.first.manufacturer.code
+  end
+
+  # WARNING: :order won't really work well for translated records.
+  # If a translation is missing, it will be counted as NULL for the
+  # purposes of ordering, even if is filled in twith the base language value
+  # for the final result. It's best to sort the results in ruby.
+  def test_order_en
+    prods = Product.find(:all, :order => "name").select {|rec| rec.name}
+    assert_equal 5, prods[0].id
+    assert_equal 3, prods[1].id
+    assert_equal 4, prods[2].id
+  end
+
+  def test_order_he
+    Locale.set("he_IL")
+    prods = Product.find(:all, :order => "name").select {|rec| rec.name}
+    assert_equal 4, prods[0].id
+    assert_equal 5, prods[1].id
+    assert_equal 3, prods[2].id
+  end
+  
   # association building/creating?
 end

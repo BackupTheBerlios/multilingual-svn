@@ -34,4 +34,47 @@ mfr_1_facet_1_he_tr:
   facet: name
   language_id: 2
   text: רברנד
-    
+
+prod_3_facet_1_en_tr:
+  id: 6
+  table_name: products
+  item_id: 3
+  facet: name
+  language_id: 1
+  text: efe
+prod_4_facet_1_en_tr:
+  id: 7
+  table_name: products
+  item_id: 4
+  facet: name
+  language_id: 1
+  text: eff
+prod_5_facet_1_en_tr:
+  id: 8
+  table_name: products
+  item_id: 5
+  facet: name
+  language_id: 1
+  text: ear
+
+prod_3_facet_1_he_tr:
+  id: 9
+  table_name: products
+  item_id: 3
+  facet: name
+  language_id: 2
+  text: סקר
+prod_4_facet_1_he_tr:
+  id: 10
+  table_name: products
+  item_id: 4
+  facet: name
+  language_id: 2
+  text: סארט
+prod_5_facet_1_he_tr:
+  id: 11
+  table_name: products
+  item_id: 5
+  facet: name
+  language_id: 2
+  text: סארי

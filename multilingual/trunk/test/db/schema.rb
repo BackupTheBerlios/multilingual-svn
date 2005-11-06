@@ -2,7 +2,6 @@ ActiveRecord::Schema.define do
 
   create_table :products, :force => true do |t|
     t.column :code, :string
-    t.column :name, :string
     t.column :manufacturer_id, :integer
   end
 
@@ -11,14 +10,12 @@ ActiveRecord::Schema.define do
 
   create_table :manufacturers, :force => true do |t|
     t.column :code, :string
-    t.column :name, :string
   end
 
   add_index :manufacturers, :code, :unique
 
   create_table :categories, :force => true do |t|
     t.column :code, :string
-    t.column :name, :string
   end
 
   add_index :categories, :code, :unique

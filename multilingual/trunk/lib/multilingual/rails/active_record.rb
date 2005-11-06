@@ -71,3 +71,5 @@ require 'multilingual/rails/lib/db_translate'
 class ActiveRecord::Base
   include Multilingual::DbTranslate
 end
+
+

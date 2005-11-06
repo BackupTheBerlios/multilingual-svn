@@ -7,3 +7,15 @@ second_product:
   id: 2
   code: second-product
   manufacturer_id: 1
+third:
+  id: 3
+  code: third-product
+  manufacturer_id: 1
+fourth:
+  id: 4
+  code: fourth-product
+  manufacturer_id: 1
+fifth:
+  id: 5
+  code: fifth-product
+  manufacturer_id: 1
