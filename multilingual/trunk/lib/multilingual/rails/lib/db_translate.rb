@@ -5,6 +5,8 @@ module Multilingual # :nodoc:
       base.extend(ClassMethods)
     end
 
+    class WrongLanguageError < ActiveRecord::ActiveRecordError; end
+
     module ClassMethods
 =begin rdoc
           Specifies fields that can be translated. These fields are stored in a
@@ -44,9 +46,8 @@ module Multilingual # :nodoc:
             
             alias_method :untranslated_find, :find unless
               respond_to? :untranslated_find
-            alias_method :old_find_by_sql, :find_by_sql unless
-              respond_to? :old_find_by_sql
           end
+          alias_method :multilingual_old_reload, :reload
           alias_method :multilingual_old_create_or_update, :create_or_update
         
           include Multilingual::DbTranslate::TranslateObjectMethods
@@ -57,10 +58,19 @@ module Multilingual # :nodoc:
         facets.each do |facet|
           class_eval <<-HERE
             def #{facet}
+              if not_original_language
+                raise WrongLanguageError, 
+                  "object was loaded as \#{@original_language.english_name}, " +
+                  "referenced as \#{Language.active_language.english_name}"
+              end
               read_attribute(:#{facet})
             end
 
             def #{facet}=(arg)
+              raise WrongLanguageError, 
+                "object was loaded as \#{@original_language.english_name}, " +
+                "can't modify as \#{Language.active_language.english_name}" if
+                not_original_language
               write_attribute(:#{facet}, arg)
             end
           HERE
@@ -71,18 +81,41 @@ module Multilingual # :nodoc:
     end
 
     module TranslateObjectMethods # :nodoc: all
-      private    
 
+      module_eval <<-HERE
+      def not_original_language
+        !@original_language.nil? && 
+          (@original_language != Language.active_language)
+      end
+
+      def set_original_language
+        @original_language = Language.active_language      
+      end
+      HERE
+
+      def reload
+        multilingual_old_reload
+        set_original_language
+      end
+
+      private    
         def create_or_update
           multilingual_old_create_or_update
           update_translation
         end
         
         def update_translation
+          raise WrongLanguageError, 
+            "object was loaded as #{@original_language.english_name}, " +
+            "can't save as #{Language.active_language.english_name}" if
+            not_original_language
+
           language_id = Language.active_language.id
           base_language_id = Language.base_language.id
           base_language = (language_id == base_language_id)
           supported_langs = Language.supported_languages
+
+          set_original_language
           
           table_name = self.class.table_name
           self.class.multilingual_facets.each do |facet|
@@ -165,7 +198,9 @@ module Multilingual # :nodoc:
 
         sanitized_joins_clause = sanitize_sql( [ joins_clause, *joins_args ] )        
         options[:joins] = sanitized_joins_clause
-        untranslated_find(:all, options)
+        results = untranslated_find(:all, options)
+
+        results.each {|result| result.set_original_language }
       end
 
       private

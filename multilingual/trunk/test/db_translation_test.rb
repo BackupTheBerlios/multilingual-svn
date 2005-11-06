@@ -202,6 +202,7 @@ class TranslationTest < Test::Unit::TestCase
 
     # change base and see if hebrew gets updated
     Locale.set("en_US")
+    prod.reload
     prod.name = "english test two"
     prod.save!
     prod.reload
@@ -209,6 +210,20 @@ class TranslationTest < Test::Unit::TestCase
     Locale.set("he_IL")
     prod.reload
     assert_equal "english test two", prod.name
+  end
+
+  def test_wrong_language
+    prod = Product.find(:first)
+    Locale.set("he_IL")
+    assert_raise(Multilingual::DbTranslate::WrongLanguageError) {
+      prod.name
+    }
+    assert_raise(Multilingual::DbTranslate::WrongLanguageError) {
+      prod.name = "dummy"
+    }
+    assert_raise(Multilingual::DbTranslate::WrongLanguageError) {
+      prod.save!
+    }
   end
 
   # association building/creating?
