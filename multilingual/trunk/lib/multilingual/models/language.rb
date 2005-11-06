@@ -9,7 +9,10 @@ class Language < ActiveRecord::Base
   @@default_language_code = nil  
 
   # this is the language which has complete coverage in the db
-  @@base_language_code = nil     
+  @@base_language_code = nil
+  
+  # these are the languages supported by the app
+  @@supported_language_codes = nil
 
   def self.active_language_code 
     @@active_language_code || self.default_language_code
@@ -26,10 +29,18 @@ class Language < ActiveRecord::Base
   end
   def self.base_language_code=(lang); @@base_language_code = lang; end
 
+  def self.supported_language_codes
+    @@supported_language_codes || [ 'en' ]
+  end
+  def self.supported_language_codes=(codes); @@supported_language_codes = codes; end
+
   def self.pick(code); self.find_by_code(code); end
 
   def self.active_language; pick(self.active_language_code); end
   def self.base_language; pick(self.base_language_code); end
+  def self.supported_languages 
+    supported_language_codes.map {|code| pick(code) }
+  end
 
   def self.find_by_code(code)
     if code.size == 2

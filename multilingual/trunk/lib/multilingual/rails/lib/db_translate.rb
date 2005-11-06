@@ -80,11 +80,13 @@ module Multilingual # :nodoc:
         
         def update_translation
           language_id = Language.active_language.id
-
+          base_language_id = Language.base_language.id
+          base_language = (language_id == base_language_id)
+          supported_langs = Language.supported_languages
+          
           table_name = self.class.table_name
           self.class.multilingual_facets.each do |facet|
             text = send(facet)
-            next if text.nil? || text.empty?
             tr = Translation.find(:first, :conditions =>
               [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
               table_name, id, facet.to_s, language_id ])
@@ -93,12 +95,38 @@ module Multilingual # :nodoc:
               Translation.create(:table_name => table_name, 
                 :item_id => id, :facet => facet.to_s, 
                 :language_id => language_id,
-                :text => text)
+                :text => text) if !text.nil? || base_language
             else 
               # update record
-              tr.update_attribute(:text, text)
+              if text.nil? && !base_language  # set back to base translation
+                base_tr = Translation.find(:first, :conditions =>
+                  [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
+                  table_name, id, facet.to_s, base_language_id ])
+                tr.update_attributes(:text => base_tr.text, :untranslated => true) if 
+                  !base_tr.nil?                
+              else
+                tr.update_attributes(:text => text, :untranslated => false)
+              end
             end
-          end
+
+            # if base translation changed, update all untranslated languages
+            if base_language
+              supported_langs.each do |lang|
+                lang_id = lang.id
+                tr = Translation.find(:first, :conditions =>
+                  [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
+                  table_name, id, facet.to_s, lang_id ])
+                if tr.nil?  # add new "untranslated" record which copies base translation
+                  Translation.create(:table_name => table_name, 
+                    :item_id => id, :facet => facet.to_s, 
+                    :language_id => lang_id,
+                    :text => text, :untranslated => true)
+                elsif tr.untranslated?  # update to base translation
+                  tr.update_attribute(:text, text)
+                end                     # otherwise leave it alone -- has own translation
+              end
+            end
+          end # end facets loop
         end
 
     end
@@ -119,9 +147,8 @@ module Multilingual # :nodoc:
         facets = multilingual_facets
         select_clause = "#{table_name}.* "
         joins_clause = options[:joins].nil? ? "" : options[:joins].dup
+        joins_args = []
 
-        active_joins_args = []
-        base_joins_args   = []
         facets.each do |facet| 
           facet = facet.to_s
           facet_alias = "t_#{facet}"
@@ -130,47 +157,21 @@ module Multilingual # :nodoc:
             "ON #{facet_alias}.table_name = ? " +
             "AND #{table_name}.#{primary_key} = #{facet_alias}.item_id " +
             "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
-          active_joins_args << table_name << facet << language_id            
-          base_joins_args << table_name << facet << base_language_id            
+          joins_args << table_name << facet << language_id            
         end
 
         options[:select] = select_clause
         options[:readonly] = false
 
-        if base_language_id != language_id
-          sanitized_joins_clause = sanitize_sql( [ joins_clause, *base_joins_args ] )
-          options[:joins] = sanitized_joins_clause
-          base_results = untranslated_find(:all, options)
-          base_map = {}
-          base_results.each do |result|
-            base_map[result.id] ||= {}
-            facets.each do |facet|
-              base_map[result.id][facet] = result.send(facet)
-            end
-          end
-          base_results = nil    # try to free up some memory
-        end
-
-        sanitized_joins_clause = sanitize_sql( [ joins_clause, *active_joins_args ] )        
+        sanitized_joins_clause = sanitize_sql( [ joins_clause, *joins_args ] )        
         options[:joins] = sanitized_joins_clause
         active_results = untranslated_find(:all, options)
 
-        if base_language_id != language_id
-          # substitute base facets where needed
-          missed_items = []
-          active_results.each do |result|
-            missed = []
-            facets.each do |facet|
-              if result.send(facet).nil?
-                result.send("#{facet}=", base_map[result.id][facet])
+=begin
                 missed << facet
-              end
-            end          
             missed_items << [ result, missed ] if !missed.empty?
-          end
           log_missed(missed_items) if !missed_items.empty?
-        end
-
+=end
         active_results
       end
 

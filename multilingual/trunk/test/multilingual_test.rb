@@ -1,6 +1,4 @@
 # Unit tests for Multilingual Rails.
-
-#require File.dirname(__FILE__) + '/../../../../test/test_helper'
 require File.dirname(__FILE__) + '/test_helper'
 
 MLR_LOCALE_PATH = File.dirname(__FILE__) + '/locales'

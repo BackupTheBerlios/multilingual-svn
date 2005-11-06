@@ -78,3 +78,20 @@ prod_5_facet_1_he_tr:
   facet: name
   language_id: 2
   text: סארי
+
+prod_1_facet_2_he_tr:
+  id: 12
+  table_name: products
+  item_id: 1
+  facet: specs
+  language_id: 2
+  text: these are the specs for the first product
+  untranslated: true
+prod_2_facet_1_he_tr:
+  id: 13
+  table_name: products
+  item_id: 2
+  facet: specs
+  language_id: 2
+  text: these are the specs for the second product
+  untranslated: true

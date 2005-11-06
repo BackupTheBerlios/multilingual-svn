@@ -25,6 +25,7 @@ class TranslationTest < Test::Unit::TestCase
 
   def setup
     Locale.set("en_US")
+    Language.supported_language_codes = [ 'en', 'he' ]
   end
 
   def test_native_language
@@ -167,10 +168,6 @@ class TranslationTest < Test::Unit::TestCase
     assert_equal "first-mfr", prods.first.manufacturer.code
   end
 
-  # WARNING: :order won't really work well for translated records.
-  # If a translation is missing, it will be counted as NULL for the
-  # purposes of ordering, even if is filled in twith the base language value
-  # for the final result. It's best to sort the results in ruby.
   def test_order_en
     prods = Product.find(:all, :order => "name").select {|rec| rec.name}
     assert_equal 5, prods[0].id
@@ -185,6 +182,34 @@ class TranslationTest < Test::Unit::TestCase
     assert_equal 5, prods[1].id
     assert_equal 3, prods[2].id
   end
-  
+
+  def test_base_translation_create
+    prod = Product.create(:code => 'test-base', :name => 'english test')
+    Locale.set("he_IL")
+    prod = Product.find_by_code('test-base')
+    assert_equal 'english test', prod.name
+    prod.name = "hebrew test"
+    prod.save!
+    prod.reload
+    assert_equal 'hebrew test', prod.name
+
+    # delete hebrew version and test if it reverts to english base
+    prod.name = nil
+    assert_nil prod.name
+    prod.save!
+    prod.reload
+    assert_equal 'english test', prod.name
+
+    # change base and see if hebrew gets updated
+    Locale.set("en_US")
+    prod.name = "english test two"
+    prod.save!
+    prod.reload
+    assert_equal "english test two", prod.name
+    Locale.set("he_IL")
+    prod.reload
+    assert_equal "english test two", prod.name
+  end
+
   # association building/creating?
 end

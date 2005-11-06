@@ -34,6 +34,7 @@ ActiveRecord::Schema.define do
     t.column :facet,          :string
     t.column :language_id,    :integer
     t.column :text,           :text
+    t.column :untranslated,   :boolean, :default => false
   end
 
   add_index :translations, [ :table_name, :item_id, :language_id ]
