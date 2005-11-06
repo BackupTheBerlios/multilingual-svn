@@ -92,7 +92,8 @@ module Multilingual # :nodoc:
         return untranslated_find(*args) if args.first != :all
 
 
-        raise ":joins option not allowed on translatable models" if options.has_key?(:joins)
+        raise ":joins option not allowed on translatable models: #{options[:joins]}" if 
+          options.has_key?(:joins) && !options[:joins].nil? && !options[:joins].empty?
         raise ":select option not allowed on translatable models" if options.has_key?(:select)
 
         language_id = Language.active_language.id
@@ -116,29 +117,34 @@ module Multilingual # :nodoc:
         end
 
         options[:select] = select_clause
+        options[:readonly] = false
 
-        sanitized_joins_clause = sanitize_sql( [ joins_clause, *base_joins_args ] )
-        options[:joins] = sanitized_joins_clause
-        base_results = untranslated_find(:all, options)
-        base_map = {}
-        base_results.each do |result|
-          base_map[result.id] ||= {}
-          facets.each do |facet|
-            base_map[result.id][facet] = result.send(facet)
+        if base_language_id != language_id
+          sanitized_joins_clause = sanitize_sql( [ joins_clause, *base_joins_args ] )
+          options[:joins] = sanitized_joins_clause
+          base_results = untranslated_find(:all, options)
+          base_map = {}
+          base_results.each do |result|
+            base_map[result.id] ||= {}
+            facets.each do |facet|
+              base_map[result.id][facet] = result.send(facet)
+            end
           end
+          base_results = nil    # try to free up some memory
         end
-        base_results = nil    # try to free up some memory
 
         sanitized_joins_clause = sanitize_sql( [ joins_clause, *active_joins_args ] )
         options[:joins] = sanitized_joins_clause
         active_results = untranslated_find(:all, options)
 
-        # substitute base facets where needed
-        active_results.each do |result|
-          facets.each do |facet|
-            result.send("#{facet}=", base_map[result.id][facet]) if
-              result.send(facet).nil?
-          end          
+        if base_language_id != language_id
+          # substitute base facets where needed
+          active_results.each do |result|
+            facets.each do |facet|
+              result.send("#{facet}=", base_map[result.id][facet]) if
+                result.send(facet).nil?
+            end          
+          end
         end
 
         active_results

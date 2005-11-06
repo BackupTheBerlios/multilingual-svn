@@ -76,18 +76,16 @@ class ActiveRecord::Base
   alias_method :multilingual_old_update, :update
   alias_method :multilingual_old_create, :create
 
-  def self.translatable?; respond_to?(:inject_translations!); end
+  def self.translatable?; respond_to?(:multilingual_facets); end
 
   private
     # inject translations when creating/updating
     def update
-      raise
       multilingual_old_update
       update_translation if self.class.translatable?
     end
 
     def create
-      raise
       multilingual_old_create
       update_translation if self.class.translatable?
     end
