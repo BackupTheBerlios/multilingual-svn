@@ -91,9 +91,6 @@ module Multilingual # :nodoc:
 
         return untranslated_find(*args) if args.first != :all
 
-
-        raise ":joins option not allowed on translatable models: #{options[:joins]}" if 
-          options.has_key?(:joins) && !options[:joins].nil? && !options[:joins].empty?
         raise ":select option not allowed on translatable models" if options.has_key?(:select)
 
         language_id = Language.active_language.id
@@ -101,14 +98,14 @@ module Multilingual # :nodoc:
 
         facets = multilingual_facets
         select_clause = "#{table_name}.* "
-        joins_clause = ""
+        joins_clause = options[:joins] || ""
         active_joins_args = []
         base_joins_args   = []
         facets.each do |facet| 
           facet = facet.to_s
           facet_alias = "t_#{facet}"
           select_clause << ", #{facet_alias}.text AS #{facet} "
-          joins_clause  << "LEFT OUTER JOIN translations AS #{facet_alias} " +
+          joins_clause  << " LEFT OUTER JOIN translations AS #{facet_alias} " +
             "ON #{facet_alias}.table_name = ? " +
             "AND #{table_name}.#{primary_key} = #{facet_alias}.item_id " +
             "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"

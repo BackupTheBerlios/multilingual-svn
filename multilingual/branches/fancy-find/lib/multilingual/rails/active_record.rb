@@ -73,24 +73,18 @@ require 'multilingual/rails/lib/db_translate'
 class ActiveRecord::Base
   include Multilingual::DbTranslate
 
-  alias_method :multilingual_old_update, :update
-  alias_method :multilingual_old_create, :create
+  alias_method :multilingual_old_create_or_update, :create_or_update
 
   def self.translatable?; respond_to?(:multilingual_facets); end
 
   private
-    # inject translations when creating/updating
-    def update
-      multilingual_old_update
-      update_translation if self.class.translatable?
-    end
-
-    def create
-      multilingual_old_create
+    def create_or_update
+      multilingual_old_create_or_update
       update_translation if self.class.translatable?
     end
 end
 
+=begin
 module ActiveRecord
   module Associations
     class AssociationProxy 
@@ -107,4 +101,4 @@ module ActiveRecord
     end
   end
 end
-#=end
+=end
