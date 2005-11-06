@@ -35,11 +35,22 @@ module Multilingual # :nodoc:
           end
         
           include Multilingual::DbTranslate::TranslateObjectMethods
-          extend  Multilingual::DbTranslate::TranslateClassMethods
-                
+          extend  Multilingual::DbTranslate::TranslateClassMethods        
+
         HERE
-      
-        attr_accessor *facets
+
+        facets.each do |facet|
+          class_eval <<-HERE
+            def #{facet}
+              read_attribute(:#{facet})
+            end
+
+            def #{facet}=(arg)
+              write_attribute(:#{facet}, arg)
+            end
+          HERE
+        end
+
         self.multilingual_facets = facets             
       end
 
