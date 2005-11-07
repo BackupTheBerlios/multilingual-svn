@@ -225,7 +225,8 @@ module Multilingual # :nodoc:
           return untranslated_find(*args)
         end
 
-        raise ":select option not allowed on translatable models" if options.has_key?(:select)
+        raise StandardError, 
+          ":select option not allowed on translatable models" if options.has_key?(:select)
         options[:conditions] = fix_conditions(options[:conditions]) if options[:conditions]
 
         language_id = Language.active_language.id
@@ -236,7 +237,7 @@ module Multilingual # :nodoc:
         select_clause = "#{table_name}.* "
         joins_clause = options[:joins].nil? ? "" : options[:joins].dup
         joins_args = []
-
+        
         facets.each do |facet| 
           facet = facet.to_s
           facet_alias = "t_#{facet}"
@@ -246,6 +247,29 @@ module Multilingual # :nodoc:
             "AND #{table_name}.#{primary_key} = #{facet_alias}.item_id " +
             "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
           joins_args << table_name << facet << language_id            
+        end
+
+        # add in associations (of :belongs_to nature) if applicable
+        associations = options[:include_translated] || []
+        associations = [ associations ].flatten
+        associations.each do |assoc|
+          rfxn = reflect_on_association(assoc)
+          assoc_type = rfxn.macro
+          raise StandardError, 
+            ":include_translated associations must be of type :belongs_to;" +
+            "#{assoc} is #{assoc_type}" if assoc_type != :belongs_to
+          klass = rfxn.klass
+          assoc_facets = klass.preload_facets
+          assoc_facets.each do |facet|
+            facet_alias = "t_#{assoc}_#{facet}"
+            fk = rfxn.options[:foreign_key] || "#{assoc}_id"
+            select_clause << ", #{facet_alias}.text AS #{assoc}_#{facet} "
+            joins_clause << " LEFT OUTER JOIN translations AS #{facet_alias} " +
+              "ON #{facet_alias}.table_name = ? " +
+              "AND #{table_name}.#{fk} = #{facet_alias}.item_id " +
+              "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
+            joins_args << klass.table_name << facet.to_s << language_id
+          end
         end
 
         options[:select] = select_clause
@@ -263,7 +287,8 @@ module Multilingual # :nodoc:
 
       protected
         def validate_find_options(options)
-          options.assert_valid_keys [:conditions, :include, :joins, :limit, :offset, :order, :select, :readonly, :translate_all]
+          options.assert_valid_keys [:conditions, :include, :include_translated, 
+            :joins, :limit, :offset, :order, :select, :readonly, :translate_all]
         end
 
       private

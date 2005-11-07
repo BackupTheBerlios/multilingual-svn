@@ -95,3 +95,11 @@ prod_2_facet_1_he_tr:
   language_id: 2
   text: these are the specs for the second product
   untranslated: true
+
+mfr_1_facet_1_en_tr:
+  id: 14
+  table_name: manufacturers
+  item_id: 1
+  facet: name
+  language_id: 1
+  text: Reverend

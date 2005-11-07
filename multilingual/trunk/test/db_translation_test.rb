@@ -147,19 +147,19 @@ class TranslationTest < Test::Unit::TestCase
     assert_equal "Dummy", prod.specs
   end
 
-=begin
-  # Too difficult for now
-  def test_include
+  def test_include_translated
     Locale.set("he_IL")
-    prods = Product.find(:all, :include => :manufacturer)
-    assert_equal 2, prods.size
-    p prods.first
-    assert_equal "זהו תיאור המוצר הראשון", prods.first.description
-    assert_equal "first-mfr", prods.first.manufacturer.code
-    assert_equal "רברנד", prods.first.manufacturer.name
-    assert_equal "רברנד", prods.last.manufacturer.name
+    prods = Product.find(:all, :include_translated => :manufacturer)
+    assert_equal 5, prods.size
+    assert_equal "רברנד", prods.first.manufacturer_name
+    assert_equal "רברנד", prods.last.manufacturer_name
+
+    Locale.set("en_US")
+    prods = Product.find(:all, :include_translated => :manufacturer)
+    assert_equal 5, prods.size
+    assert_equal "Reverend", prods.first.manufacturer_name
+    assert_equal "Reverend", prods.last.manufacturer_name  
   end
-=end
 
   # Doesn't pull in translations
   def test_include
