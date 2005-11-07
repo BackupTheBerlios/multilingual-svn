@@ -88,8 +88,8 @@ module Multilingual # :nodoc:
       end
 
 =begin rdoc
-      Optionally specifies translated fields to be preloaded on find. For instance,
-      in a product catalog, you may want to do a find of the first 10 products:
+      Optionally specifies translated fields to be preloaded on <tt>find</tt>. For instance,
+      in a product catalog, you may want to do a <tt>find</ff> of the first 10 products:
 
         Product.find(:all, :limit => 10, :order => "name"
 
@@ -106,11 +106,11 @@ module Multilingual # :nodoc:
       the first field given to <tt>translates</tt>. It will also fully load on
       a <tt>find(:first)</tt> or when <tt>:translate_all => true</tt> is given as a find option.
 =end
-      module_eval <<-HERE
       def translates_preload(*facets)
+      module_eval <<-HERE
         @@preload_facets = facets
-      end
       HERE
+      end
 
     end
 

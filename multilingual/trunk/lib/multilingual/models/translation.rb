@@ -1,5 +1,11 @@
 module Multilingual
+  # Represents a translation in the DB. This class is mostly for internal use of
+  # the Multilingual plugin, except for the initialize_supported_language class
+  # method.
   class Translation < ActiveRecord::Base
+    # Initializes translation db for a new language by copying base translations
+    # from base language. Will throw an exception if there are any entries for 
+    # the new language.
     def self.initialize_supported_language(language)
       old = Translation.find(:first, :conditions => [ "language_id = ?", language.id ])
       raise TranslationTrampleError, "Can't add language (#{language.english_name} " +
