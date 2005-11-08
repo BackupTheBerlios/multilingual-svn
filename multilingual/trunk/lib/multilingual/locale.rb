@@ -13,17 +13,7 @@ module Locale
     @@current_locale  = locale
     @@current_language, @@current_country = locale.split('_')
     Language.active_language_code = @@current_language
-    
-    ['.utf8','.UTF-8','.utf-8','.UTF8',''].each do |encoding|
-      begin
-        setlocale(Locale::LC_ALL => "#{locale}#{encoding}")
-        @@current_locale = "#{locale}#{encoding}"
-        break
-      rescue
-        next
-      end
-    end
-    
+
     load_lang_data(locale)
     load_country_data(@@current_country)
 
