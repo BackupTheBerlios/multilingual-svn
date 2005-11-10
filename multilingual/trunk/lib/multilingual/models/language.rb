@@ -1,6 +1,6 @@
 class Language < ActiveRecord::Base
-  validates_uniqueness_of :iso_639_1
-  validates_presence_of :iso_639_1, :english_name
+  validates_uniqueness_of :iso_639_1, :iso_639_2, :iso_639_3
+  validates_presence_of :english_name
 
   # language to be used for translation, set per request
   @@active_language_code = nil
