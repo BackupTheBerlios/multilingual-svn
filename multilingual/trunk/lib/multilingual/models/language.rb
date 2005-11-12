@@ -46,6 +46,10 @@ class Language < ActiveRecord::Base
     @@supported_languages ||= supported_language_codes.map {|code| pick(code) }
   end
 
+  def self.base?
+    active_language == base_language    
+  end
+
   def self.find_by_code(code)
     if code.size == 2
       find_by_iso_639_1(code)

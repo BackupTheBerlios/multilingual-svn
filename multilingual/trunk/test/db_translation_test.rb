@@ -11,10 +11,12 @@ class TranslationTest < Test::Unit::TestCase
     translates :name, :description, :specs
   end
 
-  class Category < ActiveRecord::Base
-    has_and_belongs_to_many :products
+  module OuterMod
+    class Category < ActiveRecord::Base
+      has_and_belongs_to_many :products
 
-    translates :name
+      translates :name
+    end
   end
 
   class Manufacturer < ActiveRecord::Base
@@ -89,7 +91,7 @@ class TranslationTest < Test::Unit::TestCase
 
   def test_habtm_translation
     Locale.set("he_IL")
-    cat = Category.find(1)
+    cat = OuterMod::Category.find(1)
     prods = cat.products
     assert_equal 1, prods.length
     prod = prods.first
@@ -184,7 +186,7 @@ class TranslationTest < Test::Unit::TestCase
   end
 
   def test_base_translation_create
-    prod = Product.create(:code => 'test-base', :name => 'english test')
+    prod = Product.create!(:code => 'test-base', :name => 'english test')
     Locale.set("he_IL")
     prod = Product.find_by_code('test-base')
     assert_equal 'english test', prod.name

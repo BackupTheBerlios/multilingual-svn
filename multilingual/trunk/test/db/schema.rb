@@ -3,6 +3,9 @@ ActiveRecord::Schema.define do
   create_table :products, :force => true do |t|
     t.column :code, :string
     t.column :manufacturer_id, :integer
+    t.column :name, :string
+    t.column :description, :string
+    t.column :specs, :string
   end
 
   add_index :products, :code, :unique
@@ -10,12 +13,14 @@ ActiveRecord::Schema.define do
 
   create_table :manufacturers, :force => true do |t|
     t.column :code, :string
+    t.column :name, :string
   end
 
   add_index :manufacturers, :code, :unique
 
   create_table :categories, :force => true do |t|
     t.column :code, :string
+    t.column :name, :string
   end
 
   add_index :categories, :code, :unique
@@ -34,7 +39,6 @@ ActiveRecord::Schema.define do
     t.column :facet,          :string
     t.column :language_id,    :integer
     t.column :text,           :text
-    t.column :untranslated,   :boolean, :default => false
   end
 
   add_index :translations, [ :table_name, :item_id, :language_id ]

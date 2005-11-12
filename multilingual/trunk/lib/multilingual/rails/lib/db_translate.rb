@@ -35,7 +35,10 @@ module Multilingual # :nodoc:
           def fully_loaded?; @fully_loaded; end
           @@multilingual_facets = #{facets_string}
           @@preload_facets ||= [ @@multilingual_facets.first ]
+#          @@preload_facets ||= @@multilingual_facets
           class << self
+
+            def sqlite?; connection.kind_of? ActiveRecord::ConnectionAdapters::SQLiteAdapter end
 
             def multilingual_facets
               @@multilingual_facets
@@ -46,6 +49,11 @@ module Multilingual # :nodoc:
                 hash[facet.to_s] = true; hash
               }
             end            
+
+            def untranslated_fields
+              @@untranslated_fields ||= 
+                column_names.map {|cn| cn.intern } - multilingual_facets
+            end
 
             def preload_facets; @@preload_facets; end
             def postload_facets
@@ -129,16 +137,27 @@ module Multilingual # :nodoc:
 
       def load_other_translations
         postload_facets = self.class.postload_facets
-        return if postload_facets.empty?
-        trs = Translation.find(:all, 
-          :conditions => [ "table_name = ? AND item_id = ? AND language_id = ? AND " +
-          "facet IN (#{[ '?' ] * postload_facets.size * ', '})", self.class.table_name,
-          self.id, Language.active_language.id ] + postload_facets.map {|facet| facet.to_s} )
-        trs ||= []
-        trs.each do |tr|
-          write_attribute(tr.facet, tr.text)
+        return if postload_facets.empty? || new_record?
+
+        table_name = self.class.table_name
+        facet_selection = postload_facets.join(", ")
+        base = connection.select_one("SELECT #{facet_selection} " +
+          " FROM #{table_name} WHERE #{self.class.primary_key} = #{id}", 
+          "loading base for load_other_translations")
+        base.each {|key, val| write_attribute( key, val ) }
+
+        if !Language.base?
+          trs = Translation.find(:all, 
+            :conditions => [ "table_name = ? AND item_id = ? AND language_id = ? AND " +
+            "facet IN (#{[ '?' ] * postload_facets.size * ', '})", table_name,
+            self.id, Language.active_language.id ] + postload_facets.map {|facet| facet.to_s} )
+          trs ||= []
+          trs.each do |tr|
+            attr = tr.text || base[tr.facet.to_s]
+            write_attribute( tr.facet, attr )
+          end
         end
-        fully_loaded = true
+        self.fully_loaded = true
       end
 
       def reload
@@ -146,7 +165,31 @@ module Multilingual # :nodoc:
         set_original_language
       end
 
-      private    
+      private  
+      
+        # Returns copy of the attributes hash where all the values have been safely quoted for use in
+        # an SQL statement.
+        # REDEFINED to include only untranslated fields. We don't want to overwrite the 
+        # base translation with other translations.
+        def attributes_with_quotes(include_primary_key = true)
+          if Language.base?
+            attributes.inject({}) do |quoted, (name, value)|
+              if column = column_for_attribute(name)
+                quoted[name] = quote(value, column) unless !include_primary_key && column.primary
+              end
+              quoted
+            end
+          else
+            attributes.inject({}) do |quoted, (name, value)|
+              if !self.class.multilingual_facets_hash.has_key?(name) && 
+                  column = column_for_attribute(name)
+                quoted[name] = quote(value, column) unless !include_primary_key && column.primary
+              end
+              quoted
+            end
+          end          
+        end
+
         def create_or_update
           multilingual_old_create_or_update
           update_translation
@@ -160,14 +203,16 @@ module Multilingual # :nodoc:
 
           language_id = Language.active_language.id
           base_language_id = Language.base_language.id
-          base_language = (language_id == base_language_id)
-          supported_langs = Language.supported_languages
 
           set_original_language
-          
+
+          # nothing to do, facets updated in main model
+          return if Language.base?
+
           table_name = self.class.table_name
           self.class.multilingual_facets.each do |facet|
-            text = send(facet)
+            next if !has_attribute?(facet)
+            text = read_attribute(facet)
             tr = Translation.find(:first, :conditions =>
               [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
               table_name, id, facet.to_s, language_id ])
@@ -176,36 +221,13 @@ module Multilingual # :nodoc:
               Translation.create(:table_name => table_name, 
                 :item_id => id, :facet => facet.to_s, 
                 :language_id => language_id,
-                :text => text) if !text.nil? || base_language
-            else 
+                :text => text) if !text.nil?
+            elsif text.nil?
+              # delete record
+              tr.destroy
+            else
               # update record
-              if text.nil? && !base_language  # set back to base translation
-                base_tr = Translation.find(:first, :conditions =>
-                  [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
-                  table_name, id, facet.to_s, base_language_id ])
-                tr.update_attributes(:text => base_tr.text, :untranslated => true) if 
-                  !base_tr.nil?                
-              else
-                tr.update_attributes(:text => text, :untranslated => false)
-              end
-            end
-
-            # if base translation changed, update all untranslated languages
-            if base_language
-              supported_langs.each do |lang|
-                lang_id = lang.id
-                tr = Translation.find(:first, :conditions =>
-                  [ "table_name = ? AND item_id = ? AND facet = ? AND language_id = ?",
-                  table_name, id, facet.to_s, lang_id ])
-                if tr.nil?  # add new "untranslated" record which copies base translation
-                  Translation.create(:table_name => table_name, 
-                    :item_id => id, :facet => facet.to_s, 
-                    :language_id => lang_id,
-                    :text => text, :untranslated => true)
-                elsif tr.untranslated?  # update to base translation
-                  tr.update_attribute(:text, text)
-                end                     # otherwise leave it alone -- has own translation
-              end
+              tr.update_attribute(:text, text) if tr.text != text
             end
           end # end facets loop
         end
@@ -232,20 +254,39 @@ module Multilingual # :nodoc:
         language_id = Language.active_language.id
         base_language_id = Language.base_language.id
 
+        untranslated_find(*args) if Language.base?
+
         load_full = options[:translate_all]
         facets = load_full ? multilingual_facets : preload_facets
-        select_clause = "#{table_name}.* "
+        select_clause = untranslated_fields.map {|f| "#{table_name}.#{f}" }.join(", ")
         joins_clause = options[:joins].nil? ? "" : options[:joins].dup
         joins_args = []
-        
+
+=begin
+        There's a bug in sqlite that messes up sorting when aliasing fields, 
+        see: <http://www.sqlite.org/cvstrac/tktview?tn=1521,33>.
+
+        Since I want to use sqlite, and sorting, I'm hacking this to make it work.
+        This involves renaming order by fields and adding them to the SELECT part. 
+        It's a sucky hack, but hopefully sqlite will fix the bug soon.
+=end
+
+        # sqlite bug hack          
+        select_position = untranslated_fields.size
+
         facets.each do |facet| 
           facet = facet.to_s
-          facet_alias = "t_#{facet}"
-          select_clause << ", #{facet_alias}.text AS #{facet} "
-          joins_clause  << " LEFT OUTER JOIN translations AS #{facet_alias} " +
-            "ON #{facet_alias}.table_name = ? " +
-            "AND #{table_name}.#{primary_key} = #{facet_alias}.item_id " +
-            "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
+          facet_table_alias = "t_#{facet}"
+
+          # sqlite bug hack          
+          select_position += 1
+          options[:order].sub!(facet, select_position.to_s) if options[:order] if sqlite?
+
+          select_clause << ", COALESCE(#{facet_table_alias}.text, #{table_name}.#{facet}) AS #{facet} " 
+          joins_clause  << " LEFT OUTER JOIN translations AS #{facet_table_alias} " +
+            "ON #{facet_table_alias}.table_name = ? " +
+            "AND #{table_name}.#{primary_key} = #{facet_table_alias}.item_id " +
+            "AND #{facet_table_alias}.facet = ? AND #{facet_table_alias}.language_id = ?"
           joins_args << table_name << facet << language_id            
         end
 
@@ -260,14 +301,19 @@ module Multilingual # :nodoc:
             "#{assoc} is #{assoc_type}" if assoc_type != :belongs_to
           klass = rfxn.klass
           assoc_facets = klass.preload_facets
+          included_table = klass.table_name
+          included_fk = klass.primary_key
           assoc_facets.each do |facet|
-            facet_alias = "t_#{assoc}_#{facet}"
+            facet_table_alias = "t_#{assoc}_#{facet}"
             fk = rfxn.options[:foreign_key] || "#{assoc}_id"
-            select_clause << ", #{facet_alias}.text AS #{assoc}_#{facet} "
-            joins_clause << " LEFT OUTER JOIN translations AS #{facet_alias} " +
-              "ON #{facet_alias}.table_name = ? " +
-              "AND #{table_name}.#{fk} = #{facet_alias}.item_id " +
-              "AND #{facet_alias}.facet = ? AND #{facet_alias}.language_id = ?"
+            select_clause << ", COALESCE(#{facet_table_alias}.text, #{included_table}.#{facet}) " +
+              "AS #{assoc}_#{facet} "
+            joins_clause << " LEFT OUTER JOIN translations AS #{facet_table_alias} " +
+              "ON #{facet_table_alias}.table_name = ? " +
+              "AND #{table_name}.#{fk} = #{facet_table_alias}.item_id " +
+              "AND #{facet_table_alias}.facet = ? AND #{facet_table_alias}.language_id = ? " +
+              "LEFT OUTER JOIN #{included_table} " + 
+              "ON #{table_name}.#{fk} = #{included_table}.#{included_fk} "
             joins_args << klass.table_name << facet.to_s << language_id
           end
         end

@@ -1,25 +1,4 @@
 # Read about fixtures at http://ar.rubyonrails.org/classes/Fixtures.html
-prod_1_facet_1_tr:
-  id: 1
-  table_name: products
-  item_id: 1
-  facet: description
-  language_id: 1
-  text: This is a description of the first product
-prod_1_facet_2_tr:
-  id: 2
-  table_name: products
-  item_id: 1
-  facet: specs
-  language_id: 1
-  text: these are the specs for the first product
-prod_2_facet_1_tr:
-  id: 3
-  table_name: products
-  item_id: 2
-  facet: specs
-  language_id: 1
-  text: these are the specs for the second product
 prod_1_facet_1_he_tr:
   id: 4
   table_name: products
@@ -34,29 +13,6 @@ mfr_1_facet_1_he_tr:
   facet: name
   language_id: 2
   text: רברנד
-
-prod_3_facet_1_en_tr:
-  id: 6
-  table_name: products
-  item_id: 3
-  facet: name
-  language_id: 1
-  text: efe
-prod_4_facet_1_en_tr:
-  id: 7
-  table_name: products
-  item_id: 4
-  facet: name
-  language_id: 1
-  text: eff
-prod_5_facet_1_en_tr:
-  id: 8
-  table_name: products
-  item_id: 5
-  facet: name
-  language_id: 1
-  text: ear
-
 prod_3_facet_1_he_tr:
   id: 9
   table_name: products
@@ -78,28 +34,3 @@ prod_5_facet_1_he_tr:
   facet: name
   language_id: 2
   text: סארי
-
-prod_1_facet_2_he_tr:
-  id: 12
-  table_name: products
-  item_id: 1
-  facet: specs
-  language_id: 2
-  text: these are the specs for the first product
-  untranslated: true
-prod_2_facet_1_he_tr:
-  id: 13
-  table_name: products
-  item_id: 2
-  facet: specs
-  language_id: 2
-  text: these are the specs for the second product
-  untranslated: true
-
-mfr_1_facet_1_en_tr:
-  id: 14
-  table_name: manufacturers
-  item_id: 1
-  facet: name
-  language_id: 1
-  text: Reverend

@@ -17,6 +17,8 @@ content in your database.
 
 =Configuration
 
+Configuration is optional -- there are reasonable defaults.
+
 In your environment.rb you can configure MLR like this:
 
 	MLR_LOCALE_PATH  = '/config/locale' # Relative to RAILS_ROOT # path to interface translation files
@@ -57,11 +59,14 @@ These methods are available everywhere, not only in your views. To get the curre
 
 Translating database content is a simple three step process, via #Multilingual::DbTranslate::ClassMethods.
 
-1. First, define the 'virtual fields' you wish to have available in multiple languages. For example:
+1. First, define the fields you wish to have available in multiple languages. These fields must already be present in your database. For example:
+
   class Product << ActiveRecord::Base
     translates :name, :description
   end
+
 2. Next, create a translation in whichever locale is currently set:
+
   Locale.set("es_ES")
   product = Product.find 1
   product.name = 'Albondigas'
@@ -71,7 +76,9 @@ Translating database content is a simple three step process, via #Multilingual::
   product = Product.find 1
   product.name = 'Meatballs'
   product.save!
+
 3. Finally, use your translation in context:
+
   <%= product.name %>
 
 That's it! 

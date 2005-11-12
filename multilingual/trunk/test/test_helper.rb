@@ -9,7 +9,8 @@ config_location = plugin_path + "/test/config/database.yml"
 
 config = YAML::load(ERB.new(IO.read(config_location)).result)
 ActiveRecord::Base.logger = Logger.new(plugin_path + "/test/log/test.log")
-ActiveRecord::Base.establish_connection(config[ENV['DB'] || 'sqlite3'])
+# ActiveRecord::Base.establish_connection(config[ENV['DB'] || 'sqlite3'])
+ActiveRecord::Base.establish_connection(config[ENV['DB'] || 'test'])
 
 schema_file = plugin_path + "/test/db/schema.rb"
 load(schema_file) if File.exist?(schema_file)
